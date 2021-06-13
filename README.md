@@ -21,3 +21,9 @@ python AutomaticBooking.py -url "https://web.daslab.app/book/location/1051" -url
   + https://sites.google.com/chromium.org/driver/downloads
   + Put exe location into `PATH`.
 + Selenium
+
+# TODO
+
+1. Figure out a way to click on Cookie banner when first visiting.
+2. Figure out a way to check if requiring login banner at any step.
+3. Figure out a way to not kill Chrome at the end, allowing users to log in.
