@@ -22,6 +22,10 @@ python AutomaticBooking.py -url "https://web.daslab.app/book/location/1051" -url
   + Put exe location into `PATH`.
 + Selenium
 
+# Demo
+
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/Q7rMhvYnFsU/0.jpg)](https://www.youtube.com/watch?v=Q7rMhvYnFsU "Automate booking in Chrome with Python and Selenium")
+
 # TODO
 
 1. Figure out a way to click on Cookie banner when first visiting.
