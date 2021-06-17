@@ -4,6 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
 import datetime
 import regex as re
@@ -32,6 +33,11 @@ def _wait_until_all_visible(css: str) -> List[WebElement]:
 For efficiency, assuming that the element is already visible!
 '''
 def _wait_until_clickable(css: WebElement):
+    # Wait until clickable (visibility + enabled).
+    getWebDriverWait().until(lambda in_driver: css if css.is_enabled() else None)
+    return css
+
+def _wait_until_enterable(css: WebElement):
     # Wait until clickable (visibility + enabled).
     getWebDriverWait().until(lambda in_driver: css if css.is_enabled() else None)
     return css
@@ -67,10 +73,13 @@ def execute_step(sd: StepData):
             element_to_act = elements[0]
             if "action_filter" in one_action:
                 element_to_act = one_action["action_filter"](elements)
+
             if action == "click":
                 _wait_until_clickable(element_to_act).click()
             elif action == "enter":
-                raise Exception("Enter action not supported.")
+                enter_what = one_action["enter_what"]
+                _wait_until_enterable(element_to_act).send_keys(enter_what)
+                _wait_until_enterable(element_to_act).send_keys(Keys.ENTER)
             else:
                 raise Exception("Unknown action.")
 
@@ -144,6 +153,7 @@ if __name__ == "__main__":
                              "action": "click"
                          }])
 
+        # First product => the 1st dose.
         step2 = StepData("Choose Product",
                          "div[data-name='book-product'] > * > * > div.title",
                          [{
@@ -183,7 +193,15 @@ if __name__ == "__main__":
                          "div[data-name='book-payment'] > * > * > div.title",
                          [{
                              "css_expected": "div.card > div > div > ul > li[data-cy='code-field']",
-                             "message_if_not_found": "There is no code field, maybe it's asking to pay by card?",
+                             "message_if_not_found": "There is no code field, maybe it's asking to pay by card?"
+                         },
+                         {
+                             "css_expected": "input[type='text']",
+                             "action": "enter",
+                             "enter_what": "KPM0815EB38"
+                         },
+                         {
+                             "css_expected": "a[data-cy='pay-by-code-button']",
                              "action": "click"
                          }])
 
@@ -194,10 +212,12 @@ if __name__ == "__main__":
             execute_step(step)
 
         print_status("*** Done ***")
+        driver.get_screenshot_as_file(f'DoneScreenShot_[{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}].png')
         winsound.PlaySound(r'C:\Windows\Media\Windows Print complete.wav', winsound.SND_FILENAME)
     except Exception as ex:
         print_status(ex)
         driver.get_screenshot_as_file(f'ErrorScreenShot_[{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}].png')
         winsound.PlaySound(r'C:\Windows\Media\Windows Error.wav', winsound.SND_FILENAME)
     finally:
-        driver.quit()
+        #driver.quit()
+        pass
