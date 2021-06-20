@@ -1,11 +1,13 @@
 from selenium import webdriver
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from urllib3.exceptions import MaxRetryError
 import datetime
 import regex as re
 from typing import List, Dict, Callable, Union
@@ -14,9 +16,70 @@ import pathlib
 import requests
 from time import sleep
 from argparse import ArgumentParser
+from pathlib import Path
+import sys
+import psutil
 
 def print_status(msg):
     print(f'[{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] {msg}')
+
+def get_chrome_driver():
+    # Source: https://stackoverflow.com/a/48194907/1860314
+    def _attach_to_session(executor_url, session_id):
+        original_execute = WebDriver.execute
+        def new_command_execute(self, command, params=None):
+            if command == "newSession":
+                # Mock the response
+                return {'success': 0, 'value': None, 'sessionId': session_id}
+            else:
+                return original_execute(self, command, params)
+        # Patch the function before creating the driver object
+        WebDriver.execute = new_command_execute
+        driver = webdriver.Remote(command_executor=executor_url, desired_capabilities={})
+        driver.session_id = session_id
+        # Replace the patched function with original function
+        WebDriver.execute = original_execute
+        return driver
+
+    def _create_new_session(current_session = None):
+        if current_session:
+            '''
+            Although there is "driver.start_session()", which may help re-use the chromedriver.exe,
+            I can't manage to do so. So to workaround, kill the left-over chromedriver.exe.
+            '''
+            for proc in psutil.process_iter():
+                if proc.name() == "chromedriver.exe":
+                    proc.kill()
+
+        chrome_dir = pathlib.Path(r"./ChromeSelenium").absolute()
+        chrome_options = Options()
+        chrome_options.add_argument(f"user-data-dir={chrome_dir}")
+        driver = webdriver.Chrome(options=chrome_options)
+        return driver
+
+    last_session_file = Path("LastSession.txt")
+    if last_session_file.is_file():
+        # Attempt to recover.
+        lines = last_session_file.read_text().split("\n")
+        url_id = lines[0]
+        session_id = lines[1]
+        driver = _attach_to_session(url_id, session_id)
+        try:
+            title = driver.title
+        except WebDriverException as wde:
+            # chromedriver is there, but Chrome instance no longer exists.
+            if "not reachable" in str(wde):
+                driver = _create_new_session(driver)
+            else:
+                raise wde
+        except MaxRetryError:
+            # chromedriver is now dead.
+            driver = _create_new_session()
+    else:
+        driver = _create_new_session()
+    # Overwrite mode.
+    last_session_file.write_text(f'{driver.command_executor._url}\n{driver.session_id}')
+    return driver
 
 def _getWebDriverWait(in_driver):
     wdw = WebDriverWait(in_driver, 5)
@@ -112,11 +175,7 @@ if __name__ == "__main__":
     print_status(f'Found a slot! Start registering right now!')
     winsound.PlaySound(r'C:\Windows\Media\Alarm01.wav', winsound.SND_FILENAME)
 
-    chrome_dir = pathlib.Path(r"./ChromeSelenium").absolute()
-
-    chrome_options = Options()
-    chrome_options.add_argument(f"user-data-dir={chrome_dir}")
-    driver = webdriver.Chrome(options=chrome_options)
+    driver = get_chrome_driver()
     getWebDriverWait = _getWebDriverWait(driver)
 
     def _choose_slot_having_most_remaining_capacity(eles: List[WebElement]) -> WebElement:
